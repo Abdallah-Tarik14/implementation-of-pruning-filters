@@ -16,9 +16,9 @@ def prune_net(net, independentflag, prune_layers, prune_channels, net_name, shor
 
 def prune_vgg(net, independentflag, prune_layers, prune_channels, 
               use_layer_sensitivity=True, progressive_pruning=True, 
-              pruning_stages=3, criterion='l2_norm'):
+              pruning_stages=5, criterion='l2_norm'):
     """
-    Layer-aware pruning function for VGG networks based on empirical sensitivity analysis.
+    Refined layer-aware pruning function for VGG networks with less aggressive pruning.
     
     Args:
         net: The VGG neural network model to be pruned
@@ -27,44 +27,45 @@ def prune_vgg(net, independentflag, prune_layers, prune_channels,
         prune_channels: List containing the number of channels to prune for each layer
         use_layer_sensitivity: Whether to adjust pruning based on layer sensitivity analysis
         progressive_pruning: Whether to use progressive pruning schedule
-        pruning_stages: Number of stages for progressive pruning
+        pruning_stages: Number of stages for progressive pruning (default increased to 5)
         criterion: Filter importance criterion ('l1_norm', 'l2_norm', 'taylor_expansion')
         
     Returns:
         Pruned network
     """
     # Layer sensitivity configuration based on empirical analysis
+    # Reduced sensitivity scores to be less aggressive
     layer_sensitivity = {
-        'conv_1': 2.5,  # Low sensitivity (can prune up to 70%)
-        'conv_2': 5.0,  # Medium sensitivity (can prune up to 50%)
-        'conv_3': 7.5,  # High sensitivity (can prune up to 30%)
-        'conv_4': 9.0,  # Very high sensitivity (can prune up to 20%)
-        'conv_5': 6.5,  # High sensitivity (can prune up to 40%)
-        'conv_6': 5.0,  # Medium sensitivity (can prune up to 50%)
-        'conv_7': 3.5,  # Low sensitivity (can prune up to 60%)
-        'conv_8': 2.5,  # Low sensitivity (can prune up to 70%)
-        'conv_9': 4.5,  # Medium sensitivity (can prune up to 55%)
-        'conv_10': 7.0, # High sensitivity (can prune up to 35%)
-        'conv_11': 8.5, # Very high sensitivity (can prune up to 25%)
-        'conv_12': 7.0, # High sensitivity (can prune up to 35%)
-        'conv_13': 4.0, # Medium sensitivity (can prune up to 60%)
+        'conv_1': 4.0,  # Was 2.5, now more conservative
+        'conv_2': 6.0,  # Was 5.0, now more conservative
+        'conv_3': 8.0,  # Was 7.5, now more conservative
+        'conv_4': 9.0,  # Very high sensitivity (unchanged)
+        'conv_5': 7.0,  # Was 6.5, now more conservative
+        'conv_6': 6.0,  # Was 5.0, now more conservative
+        'conv_7': 5.0,  # Was 3.5, now more conservative
+        'conv_8': 4.0,  # Was 2.5, now more conservative
+        'conv_9': 5.5,  # Was 4.5, now more conservative
+        'conv_10': 7.5, # Was 7.0, now more conservative
+        'conv_11': 9.0, # Was 8.5, now more conservative
+        'conv_12': 7.5, # Was 7.0, now more conservative
+        'conv_13': 5.0, # Was 4.0, now more conservative
     }
     
-    # Maximum pruning percentages based on sensitivity
+    # Maximum pruning percentages based on sensitivity - significantly reduced
     max_prune_percentage = {
-        'conv_1': 0.70,
-        'conv_2': 0.50,
-        'conv_3': 0.30,
-        'conv_4': 0.20,
-        'conv_5': 0.40,
-        'conv_6': 0.50,
-        'conv_7': 0.60,
-        'conv_8': 0.70,
-        'conv_9': 0.55,
-        'conv_10': 0.35,
-        'conv_11': 0.25,
-        'conv_12': 0.35,
-        'conv_13': 0.60,
+        'conv_1': 0.50,  # Was 0.70, reduced to 50%
+        'conv_2': 0.35,  # Was 0.50, reduced to 35%
+        'conv_3': 0.20,  # Was 0.30, reduced to 20%
+        'conv_4': 0.15,  # Was 0.20, reduced to 15%
+        'conv_5': 0.25,  # Was 0.40, reduced to 25%
+        'conv_6': 0.35,  # Was 0.50, reduced to 35%
+        'conv_7': 0.40,  # Was 0.60, reduced to 40%
+        'conv_8': 0.50,  # Was 0.70, reduced to 50%
+        'conv_9': 0.40,  # Was 0.55, reduced to 40%
+        'conv_10': 0.25, # Was 0.35, reduced to 25%
+        'conv_11': 0.15, # Was 0.25, reduced to 15%
+        'conv_12': 0.25, # Was 0.35, reduced to 25%
+        'conv_13': 0.40, # Was 0.60, reduced to 40%
     }
     
     # Layer filter counts for reference
@@ -113,13 +114,24 @@ def prune_vgg(net, independentflag, prune_layers, prune_channels,
         stage_prune_channels = []
         for i, channels in enumerate(prune_channels):
             # Distribute pruning across stages with more pruning in later stages
-            # This is the opposite of the previous approach to allow the network to adapt gradually
+            # This allows the network to adapt gradually
             stage_amounts = []
             remaining = channels
+            
+            # Use a more gradual distribution - more conservative in early stages
+            stage_weights = []
             for stage in range(pruning_stages):
-                # More aggressive pruning in later stages
-                stage_ratio = (stage + 1) / sum(range(1, pruning_stages + 1))
-                stage_amount = max(1, int(channels * stage_ratio))
+                # Exponential increase in pruning amount per stage
+                weight = 1.2 ** stage
+                stage_weights.append(weight)
+            
+            # Normalize weights to sum to 1
+            total_weight = sum(stage_weights)
+            stage_weights = [w / total_weight for w in stage_weights]
+            
+            # Calculate pruning amount for each stage
+            for stage in range(pruning_stages):
+                stage_amount = max(1, int(channels * stage_weights[stage]))
                 if sum(stage_amounts) + stage_amount > channels:
                     stage_amount = channels - sum(stage_amounts)
                 
