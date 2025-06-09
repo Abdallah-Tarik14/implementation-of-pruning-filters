@@ -11,7 +11,7 @@ from tools.get_data import get_train_loader, get_test_loader
 from tools.get_parameters import get_args
 from tools.flops_params import get_flops_params
 
-from prune import prune_net
+from prune1 import prune_net
 
 CHECK_POINT_PATH = "./checkpoint"
 
