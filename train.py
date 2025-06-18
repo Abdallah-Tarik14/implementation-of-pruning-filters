@@ -186,7 +186,7 @@ if __name__ == '__main__':
     net = net.cuda()
 
     # define checkpoint path
-    time = str(datetime.date.today() + datetime.timedelta(days=2))
+    time = str(datetime.date.today())
     checkpoint_path = os.path.join(CHECK_POINT_PATH, args.net)
     train_checkpoint_path = os.path.join(checkpoint_path, 'train', time)
     train_most_recent_path = os.path.join(checkpoint_path, 'train')
